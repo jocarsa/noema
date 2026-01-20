@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noema Programming Language</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+    <!-- Language Selector -->
+    <div class="lang-selector">
+        <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+        </select>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-code"></i>
+                <span id="nav-title">Noema</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#home" id="nav-home">Home</a></li>
+                <li><a href="#features" id="nav-features">Features</a></li>
+                <li><a href="#syntax" id="nav-syntax">Syntax</a></li>
+                <li><a href="#examples" id="nav-examples">Examples</a></li>
+                <li><a href="#download" id="nav-download">Download</a></li>
+                <li><a href="#docs" id="nav-docs">Docs</a></li>
+                <li><a href="https://github.com" target="_blank" id="nav-github">
+                    <i class="fab fa-github"></i> GitHub
+                </a></li>
+            </ul>
+            <button class="nav-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-content">
+            <h1 id="hero-title">Noema Programming Language</h1>
+            <p id="hero-subtitle">Simplicity meets elegance with Latin-inspired syntax</p>
+            <div class="hero-buttons">
+                <a href="#download" class="btn btn-primary" id="hero-cta1">Get Started</a>
+                <a href="#examples" class="btn btn-secondary" id="hero-cta2">View Examples</a>
+            </div>
+        </div>
+        <div class="hero-code">
+            <pre><code class="language-noema" id="hero-code-example">
+# Noema Example
+nomen = "Mundo"
+salutatio = "Salve " + nomen + "!"
+sonus.dic(salutatio)
+
+si nomen == "Noema":
+    sonus.dic("Optime!")
+alio:
+    sonus.dic("Bene venisti!")
+            </code></pre>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 id="features-title">Why Noema?</h2>
+            <div class="features-grid" id="features-items">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Syntax Section -->
+    <section id="syntax" class="syntax">
+        <div class="container">
+            <h2 id="syntax-title">Syntax Examples</h2>
+            <div class="syntax-grid">
+                <div class="code-card">
+                    <h3 id="syntax-code1-title">Hello World</h3>
+                    <pre><code class="language-noema" id="syntax-code1">sonus.dic("Salve mundus!")</code></pre>
+                </div>
+                <div class="code-card">
+                    <h3 id="syntax-code2-title">Variables & Conditions</h3>
+                    <pre><code class="language-noema" id="syntax-code2">nomen = "Noema"
+si nomen == "Noema":
+    sonus.dic("Optime!")
+alio:
+    sonus.dic("Quis es?")</code></pre>
+                </div>
+                <div class="code-card">
+                    <h3 id="syntax-code3-title">Arithmetic</h3>
+                    <pre><code class="language-noema" id="syntax-code3">x = 10
+y = 5
+summa = x + y
+differentia = x - y
+sonus.dic(summa)</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="examples" class="examples">
+        <div class="container">
+            <h2 id="examples-title">More Examples</h2>
+            <div class="examples-grid" id="examples-items">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Keywords Section -->
+    <section class="keywords">
+        <div class="container">
+            <h2 id="keywords-title">Latin Keywords</h2>
+            <div class="keywords-table-container">
+                <table class="keywords-table">
+                    <thead>
+                        <tr>
+                            <th>Noema Keyword</th>
+                            <th>English Equivalent</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keywords-table">
+                        <!-- Filled by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="download" class="download">
+        <div class="container">
+            <h2 id="download-title">Get Noema</h2>
+            <p id="download-description" class="download-desc">
+                Download the latest version or build from source
+            </p>
+            <div class="download-info">
+                <div class="version-badge" id="download-version">Current Version: 0.1.0</div>
+                <div class="download-requirements" id="download-requirements">
+                    Requirements: C compiler (GCC/Clang), Make
+                </div>
+            </div>
+            <div class="download-buttons">
+                <a href="https://github.com/yourusername/noema" target="_blank" class="btn btn-primary">
+                    <i class="fab fa-github"></i> <span id="download-btn-source">Source Code</span>
+                </a>
+                <a href="#" class="btn btn-secondary" id="download-btn-binary">Download Binary</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-about">
+                    <div class="footer-logo">
+                        <i class="fas fa-code"></i> Noema
+                    </div>
+                    <p id="footer-description">
+                        Noema is an open-source programming language designed for simplicity and elegance.
+                    </p>
+                </div>
+                <div class="footer-links">
+                    <h4>Links</h4>
+                    <ul id="footer-links">
+                        <!-- Filled by JavaScript -->
+                    </ul>
+                </div>
+                <div class="footer-social">
+                    <h4>Community</h4>
+                    <div class="social-icons">
+                        <a href="https://github.com" target="_blank"><i class="fab fa-github"></i></a>
+                        <a href="#"><i class="fab fa-discord"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-stack-overflow"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p id="footer-copyright">© 2024 Noema Language Project. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

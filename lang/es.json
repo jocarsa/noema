@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "title": "Noema Programming Language",
+    "description": "A simple, elegant programming language with Latin-inspired syntax"
+  },
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "syntax": "Syntax",
+    "examples": "Examples",
+    "download": "Download",
+    "docs": "Documentation",
+    "github": "GitHub"
+  },
+  "hero": {
+    "title": "Noema Programming Language",
+    "subtitle": "Simplicity meets elegance with Latin-inspired syntax",
+    "cta1": "Get Started",
+    "cta2": "View Examples"
+  },
+  "features": {
+    "title": "Why Noema?",
+    "items": [
+      {
+        "title": "Clean Syntax",
+        "description": "Latin keywords make code readable and elegant"
+      },
+      {
+        "title": "Simple Yet Powerful",
+        "description": "Easy to learn with all essential programming constructs"
+      },
+      {
+        "title": "Lightweight",
+        "description": "Small runtime with minimal dependencies"
+      },
+      {
+        "title": "Open Source",
+        "description": "MIT licensed - free to use and modify"
+      }
+    ]
+  },
+  "syntax": {
+    "title": "Syntax Examples",
+    "code1": {
+      "title": "Hello World",
+      "code": "sonus.dic(\"Salve mundus!\")"
+    },
+    "code2": {
+      "title": "Variables & Conditions",
+      "code": "nomen = \"Noema\"\nsi nomen == \"Noema\":\n    sonus.dic(\"Optime!\")\nalio:\n    sonus.dic(\"Quis es?\")"
+    },
+    "code3": {
+      "title": "Arithmetic",
+      "code": "x = 10\ny = 5\nsumma = x + y\ndifferentia = x - y\nsonus.dic(summa)"
+    }
+  },
+  "examples": {
+    "title": "More Examples",
+    "items": [
+      {
+        "title": "Fibonacci",
+        "code": "munus fibonacci(n):\n    si n <= 1:\n        redit n\n    alio:\n        redit fibonacci(n-1) + fibonacci(n-2)"
+      },
+      {
+        "title": "Loops",
+        "code": "pro i in 1..10:\n    si i % 2 == 0:\n        sonus.dic(i)\n    alio:\n        sonus.dic(\"Impar\")"
+      },
+      {
+        "title": "Lists",
+        "code": "numeri = [1, 2, 3, 4, 5]\nsumma = 0\npro n in numeri:\n    summa = summa + n\nsonus.dic(summa)"
+      }
+    ]
+  },
+  "keywords": {
+    "title": "Latin Keywords",
+    "table": [
+      ["si", "if"],
+      ["alio", "else"],
+      ["pro", "for"],
+      ["dum", "while"],
+      ["munus", "function"],
+      ["redit", "return"],
+      ["verum", "true"],
+      ["falsum", "false"],
+      ["nulla", "null"],
+      ["et", "and"],
+      ["aut", "or"],
+      ["non", "not"]
+    ]
+  },
+  "download": {
+    "title": "Get Noema",
+    "description": "Download the latest version or build from source",
+    "version": "Current Version: 0.1.0",
+    "btn_source": "Source Code",
+    "btn_binary": "Download Binary",
+    "requirements": "Requirements: C compiler (GCC/Clang), Make"
+  },
+  "footer": {
+    "description": "Noema is an open-source programming language designed for simplicity and elegance.",
+    "links": [
+      "Documentation",
+      "GitHub Repository",
+      "Issue Tracker",
+      "Contributing"
+    ],
+    "copyright": "© 2024 Noema Language Project. MIT License."
+  }
+}
