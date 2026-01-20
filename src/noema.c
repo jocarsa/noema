@@ -21,21 +21,93 @@ static void dump_tokens(FILE *f, const char *path) {
     lexer_destroy(lx);
 }
 
+static void dump_expr(const Expr *e);
+
+static const char* op_name(ExprOp op) {
+    switch (op) {
+        case OP_ADD: return "+";
+        case OP_SUB: return "-";
+        case OP_MUL: return "*";
+        case OP_DIV: return "/";
+        case OP_MOD: return "%";
+        case OP_EQ:  return "==";
+        case OP_NE:  return "!=";
+        case OP_LT:  return "<";
+        case OP_LE:  return "<=";
+        case OP_GT:  return ">";
+        case OP_GE:  return ">=";
+        case OP_AND: return "et";
+        case OP_OR:  return "aut";
+        case OP_NOT: return "non";
+        case OP_NEG: return "neg";
+        default:     return "?";
+    }
+}
+
+static void dump_expr(const Expr *e) {
+    if (!e) { printf("<null-expr>"); return; }
+
+    switch (e->kind) {
+        case EXPR_LITERAL:
+            if (e->as.lit.lit_kind == LIT_INT) {
+                printf("%d", e->as.lit.int_value);
+            } else if (e->as.lit.lit_kind == LIT_BOOL) {
+                printf("%s", e->as.lit.int_value ? "verum" : "falsum");
+            } else if (e->as.lit.lit_kind == LIT_NULL) {
+                printf("nulla");
+            } else if (e->as.lit.lit_kind == LIT_STRING) {
+                printf("\"%s\"", e->as.lit.text);
+            } else {
+                printf("<lit?>");
+            }
+            return;
+
+        case EXPR_VAR:
+            printf("%s", e->as.var.name);
+            return;
+
+        case EXPR_UNARY:
+            if (e->as.unary.op == OP_NOT) {
+                printf("non ");
+                dump_expr(e->as.unary.rhs);
+            } else if (e->as.unary.op == OP_NEG) {
+                printf("(-");
+                dump_expr(e->as.unary.rhs);
+                printf(")");
+            } else {
+                printf("(%s ", op_name(e->as.unary.op));
+                dump_expr(e->as.unary.rhs);
+                printf(")");
+            }
+            return;
+
+        case EXPR_BINARY:
+            printf("(");
+            dump_expr(e->as.binary.lhs);
+            printf(" %s ", op_name(e->as.binary.op));
+            dump_expr(e->as.binary.rhs);
+            printf(")");
+            return;
+
+        default:
+            printf("<expr?>");
+            return;
+    }
+}
+
 static void dump_ast(const ParseResult *pr) {
     for (Stmt *s = pr->first; s; s = s->next) {
         if (s->kind == STMT_IMPORT) {
             printf("IMPORT %s\n", s->module);
+
         } else if (s->kind == STMT_ASSIGN) {
             printf("ASSIGN %s = ", s->target);
-            if (s->value.kind == EXPR_INT) printf("%d", s->value.int_value);
-            else if (s->value.kind == EXPR_BOOL) printf("%s", s->value.int_value ? "verum" : "falsum");
-            else printf("%s", s->value.text);
+            dump_expr(s->value);
             printf("\n");
+
         } else if (s->kind == STMT_CALL_PRINT) {
             printf("CALL sonus.dic(");
-            if (s->arg.kind == EXPR_INT) printf("%d", s->arg.int_value);
-            else if (s->arg.kind == EXPR_BOOL) printf("%s", s->arg.int_value ? "verum" : "falsum");
-            else printf("%s", s->arg.text);
+            dump_expr(s->arg);
             printf(")\n");
         }
     }

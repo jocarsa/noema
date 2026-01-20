@@ -9,36 +9,104 @@ extern "C" {
 
 typedef struct Parser Parser;
 
+/* =========================
+   Statements
+   ========================= */
+
 typedef enum {
     STMT_IMPORT = 1,
     STMT_ASSIGN,
     STMT_CALL_PRINT
 } StmtKind;
 
+/* =========================
+   Expressions (Phase 1)
+   ========================= */
+
 typedef enum {
-    EXPR_INT = 1,
-    EXPR_STRING,
-    EXPR_IDENT,
-    EXPR_BOOL,
-    EXPR_NULL
+    EXPR_LITERAL = 1,
+    EXPR_VAR,
+    EXPR_UNARY,
+    EXPR_BINARY
 } ExprKind;
 
-typedef struct Expr {
+typedef enum {
+    LIT_INT = 1,
+    LIT_STRING,
+    LIT_BOOL,
+    LIT_NULL
+} LiteralKind;
+
+typedef enum {
+    OP_ADD = 1,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    OP_MOD,
+
+    OP_EQ,
+    OP_NE,
+    OP_LT,
+    OP_LE,
+    OP_GT,
+    OP_GE,
+
+    OP_AND,
+    OP_OR,
+
+    OP_NOT,
+    OP_NEG
+} ExprOp;
+
+typedef struct Expr Expr;
+
+struct Expr {
     ExprKind kind;
-    char text[NOEMA_TOKEN_VALUE_MAX];
-    int  int_value;
-} Expr;
+    int line;
+    int col;
+
+    union {
+        struct {
+            LiteralKind lit_kind;
+            int int_value;                          // for int/bool
+            char text[NOEMA_TOKEN_VALUE_MAX];       // for string
+        } lit;
+
+        struct {
+            char name[NOEMA_TOKEN_VALUE_MAX];       // variable name
+        } var;
+
+        struct {
+            ExprOp op;
+            Expr *rhs;
+        } unary;
+
+        struct {
+            ExprOp op;
+            Expr *lhs;
+            Expr *rhs;
+        } binary;
+
+    } as;
+};
+
+/* =========================
+   AST nodes
+   ========================= */
 
 typedef struct Stmt {
     StmtKind kind;
     int line, col;
 
+    // import
     char module[NOEMA_TOKEN_VALUE_MAX];
 
+    // assign
     char target[NOEMA_TOKEN_VALUE_MAX];
-    Expr value;
+    Expr *value;              // NOTE: pointer now
 
-    Expr arg;
+    // print call
+    Expr *arg;                // NOTE: pointer now
 
     struct Stmt *next;
 } Stmt;
@@ -49,6 +117,10 @@ typedef struct {
     Stmt *first;
     Stmt *last;
 } ParseResult;
+
+/* =========================
+   API
+   ========================= */
 
 Parser*     parser_create(Lexer *lx);
 void        parser_destroy(Parser *p);
