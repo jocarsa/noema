@@ -1,0 +1,4 @@
+import sonus
+
+sonus.dic("salve mundus")
+

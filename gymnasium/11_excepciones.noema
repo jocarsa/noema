@@ -1,0 +1,15 @@
+import sonus
+
+munus divide(a, b):
+    si b == 0:
+        iacta Error("divisio per zero")
+    redit a / b
+
+conare:
+    x = divide(10, 0)
+    sonus.dic(x)
+nisi:
+    sonus.dic("error captus")
+denique:
+    sonus.dic("denique semper")
+

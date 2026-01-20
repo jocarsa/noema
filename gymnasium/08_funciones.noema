@@ -1,0 +1,8 @@
+import sonus
+
+munus quadratum(x):
+    redit x * x
+
+sonus.dic(quadratum(5))
+sonus.dic(quadratum(9))
+

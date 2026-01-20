@@ -1,0 +1,9 @@
+import sonus
+
+valor = nulla
+
+si valor == nulla:
+    sonus.dic("vacuum")
+alio:
+    sonus.dic("definitum")
+

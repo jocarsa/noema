@@ -1,0 +1,8 @@
+import sonus
+
+munus saluta(nomen):
+    redit "salve " + nomen
+
+sonus.dic(saluta("Aurelia"))
+sonus.dic(saluta("Marcus"))
+

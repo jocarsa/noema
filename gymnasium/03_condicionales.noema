@@ -1,0 +1,11 @@
+import sonus
+
+nota = 7
+
+si nota >= 9:
+    sonus.dic("excellentia")
+aliosi nota >= 5:
+    sonus.dic("aprobatus")
+alio:
+    sonus.dic("suspensus")
+

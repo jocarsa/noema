@@ -1,0 +1,20 @@
+import sonus
+
+x = 10
+nomen = "Marcus"
+valor = nulla
+flag = verum
+
+sonus.dic(x)
+sonus.dic(nomen)
+sonus.dic(valor)
+sonus.dic(flag)
+
+x = 42
+nomen = "Julia"
+flag = falsum
+
+sonus.dic(x)
+sonus.dic(nomen)
+sonus.dic(flag)
+

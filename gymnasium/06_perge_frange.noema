@@ -1,0 +1,9 @@
+import sonus
+
+pro i in series(0, 10):
+    si i == 2:
+        perge
+    si i == 7:
+        frange
+    sonus.dic(i)
+

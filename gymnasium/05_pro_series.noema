@@ -1,0 +1,5 @@
+import sonus
+
+pro i in series(0, 5):
+    sonus.dic(i)
+

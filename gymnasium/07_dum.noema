@@ -1,0 +1,10 @@
+import sonus
+
+x = 0
+
+dum x < 5:
+    sonus.dic(x)
+    x = x + 1
+
+sonus.dic("fin")
+

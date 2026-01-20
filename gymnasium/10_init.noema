@@ -1,0 +1,7 @@
+import sonus
+
+munus init():
+    sonus.dic("init incipit")
+    sonus.dic("salve mundus")
+    redit 0
+

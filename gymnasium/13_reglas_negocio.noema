@@ -1,0 +1,12 @@
+import sonus
+
+edad = 20
+vip = verum
+
+si edad >= 18 et vip == verum:
+    sonus.dic("accessus totalis")
+aliosi edad >= 18:
+    sonus.dic("accessus")
+alio:
+    sonus.dic("negatus")
+

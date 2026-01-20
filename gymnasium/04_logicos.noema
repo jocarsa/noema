@@ -1,0 +1,12 @@
+import sonus
+
+x = 7
+
+si x > 0 et x < 10:
+    sonus.dic("en rango")
+alio:
+    sonus.dic("fuera")
+
+si non (x == 5) aut x == 7:
+    sonus.dic("condicion vera")
+

@@ -1,0 +1,16 @@
+import sonus
+
+x = 10
+nomen = "Marcus"
+b = verum
+v = nulla
+
+sonus.dic("salve")
+sonus.dic(x)
+sonus.dic(nomen)
+sonus.dic(b)
+sonus.dic(v)
+
+y = x
+sonus.dic(y)
+
