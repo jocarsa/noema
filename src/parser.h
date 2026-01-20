@@ -16,7 +16,8 @@ typedef struct Parser Parser;
 typedef enum {
     STMT_IMPORT = 1,
     STMT_ASSIGN,
-    STMT_CALL_PRINT
+    STMT_CALL_PRINT,
+    STMT_IF
 } StmtKind;
 
 /* =========================
@@ -91,6 +92,16 @@ struct Expr {
 };
 
 /* =========================
+   IF branches (si/aliosi/alio)
+   ========================= */
+
+typedef struct IfBranch {
+    Expr *cond;                 // NULL means 'alio' (else)
+    struct Stmt *body;          // linked list of statements in this block
+    struct IfBranch *next;
+} IfBranch;
+
+/* =========================
    AST nodes
    ========================= */
 
@@ -103,10 +114,13 @@ typedef struct Stmt {
 
     // assign
     char target[NOEMA_TOKEN_VALUE_MAX];
-    Expr *value;              // NOTE: pointer now
+    Expr *value;
 
     // print call
-    Expr *arg;                // NOTE: pointer now
+    Expr *arg;
+
+    // if
+    IfBranch *if_branches;
 
     struct Stmt *next;
 } Stmt;

@@ -21,7 +21,9 @@ static void dump_tokens(FILE *f, const char *path) {
     lexer_destroy(lx);
 }
 
-static void dump_expr(const Expr *e);
+/* ============================================================
+   AST dump helpers
+   ============================================================ */
 
 static const char* op_name(ExprOp op) {
     switch (op) {
@@ -95,23 +97,77 @@ static void dump_expr(const Expr *e) {
     }
 }
 
-static void dump_ast(const ParseResult *pr) {
-    for (Stmt *s = pr->first; s; s = s->next) {
-        if (s->kind == STMT_IMPORT) {
-            printf("IMPORT %s\n", s->module);
+static void indent_n(int n) {
+    for (int i = 0; i < n; i++) putchar(' ');
+}
 
-        } else if (s->kind == STMT_ASSIGN) {
-            printf("ASSIGN %s = ", s->target);
-            dump_expr(s->value);
-            printf("\n");
+static void dump_stmt_list(const Stmt *s, int ind);
 
-        } else if (s->kind == STMT_CALL_PRINT) {
-            printf("CALL sonus.dic(");
-            dump_expr(s->arg);
-            printf(")\n");
+static void dump_if(const Stmt *s, int ind) {
+    const IfBranch *b = s->if_branches;
+    int first = 1;
+
+    while (b) {
+        indent_n(ind);
+        if (first) {
+            printf("SI ");
+            if (b->cond) dump_expr(b->cond); else printf("<missing-cond>");
+            printf(":\n");
+            first = 0;
+        } else if (b->cond) {
+            printf("ALIOSI ");
+            dump_expr(b->cond);
+            printf(":\n");
+        } else {
+            printf("ALIO:\n");
+        }
+
+        dump_stmt_list(b->body, ind + 2);
+        b = b->next;
+    }
+}
+
+static void dump_stmt_list(const Stmt *s, int ind) {
+    for (; s; s = s->next) {
+        switch (s->kind) {
+            case STMT_IMPORT:
+                indent_n(ind);
+                printf("IMPORT %s\n", s->module);
+                break;
+
+            case STMT_ASSIGN:
+                indent_n(ind);
+                printf("ASSIGN %s = ", s->target);
+                dump_expr(s->value);
+                printf("\n");
+                break;
+
+            case STMT_CALL_PRINT:
+                indent_n(ind);
+                printf("CALL sonus.dic(");
+                dump_expr(s->arg);
+                printf(")\n");
+                break;
+
+            case STMT_IF:
+                dump_if(s, ind);
+                break;
+
+            default:
+                indent_n(ind);
+                printf("UNKNOWN_STMT\n");
+                break;
         }
     }
 }
+
+static void dump_ast(const ParseResult *pr) {
+    dump_stmt_list(pr->first, 0);
+}
+
+/* ============================================================
+   Public entry
+   ============================================================ */
 
 NoemaResult noema_run_file(FILE *f, const char *path, const NoemaOptions *opt) {
     NoemaResult r;

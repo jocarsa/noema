@@ -1,9 +1,14 @@
+// src/parser.c
 #include "parser.h"
 #include "diag.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+/* ============================================================
+   Parser state + diagnostics
+   ============================================================ */
 
 struct Parser {
     Lexer *lx;
@@ -20,13 +25,12 @@ static void set_error(Parser *p, const Token *t, const char *msg) {
 static Token next_tok(Parser *p) { return lexer_next(p->lx); }
 static Token peek_tok(Parser *p) { return lexer_peek(p->lx); }
 
-static void skip_noise(Parser *p) {
+/* In Phase 2 we MUST NOT skip INDENT/DEDENT globally, because they
+   define blocks. We only skip NEWLINE "noise" between top-level stmts. */
+static void skip_newlines(Parser *p) {
     for (;;) {
         Token t = peek_tok(p);
-        if (t.type == TOKEN_NEWLINE || t.type == TOKEN_INDENT || t.type == TOKEN_DEDENT) {
-            next_tok(p);
-            continue;
-        }
+        if (t.type == TOKEN_NEWLINE) { next_tok(p); continue; }
         break;
     }
 }
@@ -44,21 +48,23 @@ static Token expect(Parser *p, TokenType ty, const char *val_opt, const char *wh
     return t;
 }
 
-static void consume_to_newline(Parser *p) {
+/* Conservative recovery: consume tokens until NEWLINE or DEDENT or EOF. */
+static void consume_to_recovery_point(Parser *p) {
     for (;;) {
         Token t = peek_tok(p);
-        if (t.type == TOKEN_EOF || t.type == TOKEN_NEWLINE) return;
+        if (t.type == TOKEN_EOF) return;
+        if (t.type == TOKEN_NEWLINE) return;
+        if (t.type == TOKEN_DEDENT) return;
         next_tok(p);
     }
 }
 
-/* =========================
+/* ============================================================
    Expr allocation/free
-   ========================= */
+   ============================================================ */
 
 static Expr* expr_new(void) {
-    Expr *e = (Expr*)calloc(1, sizeof(Expr));
-    return e;
+    return (Expr*)calloc(1, sizeof(Expr));
 }
 
 static Expr* expr_lit_int(int v, int line, int col) {
@@ -161,34 +167,24 @@ static void expr_free(Expr *e) {
     free(e);
 }
 
-/* =========================
-   Expression parsing
-   precedence:
-   unary: non, -
-   mul: * / %
-   add: + -
-   cmp: < <= > >=
-   eq:  == !=
-   and: et
-   or:  aut
-   ========================= */
+/* ============================================================
+   Expression parsing (Phase 1)
+   - precedence climbing via chained functions
+   ============================================================ */
 
-static int tok_is_kw(Parser *p, const char *s) {
-    Token t = peek_tok(p);
-    return (t.type == TOKEN_KEYWORD && strcmp(t.value, s) == 0);
+static int tok_is_kw(const Token *t, const char *kw) {
+    return (t->type == TOKEN_KEYWORD && strcmp(t->value, kw) == 0);
 }
 
-static int tok_is_op(Parser *p, const char *s) {
-    Token t = peek_tok(p);
-    return (t.type == TOKEN_OPERATOR && strcmp(t.value, s) == 0);
+static int tok_is_op(const Token *t, const char *op) {
+    return (t->type == TOKEN_OPERATOR && strcmp(t->value, op) == 0);
 }
 
-static int tok_is_cmp(Parser *p, const char *s) {
-    Token t = peek_tok(p);
-    return (t.type == TOKEN_COMPARATOR && strcmp(t.value, s) == 0);
+static int tok_is_cmp(const Token *t, const char *c) {
+    return (t->type == TOKEN_COMPARATOR && strcmp(t->value, c) == 0);
 }
 
-static Expr* parse_expr(Parser *p); // forward
+static Expr* parse_expr(Parser *p); /* forward */
 
 static Expr* parse_primary(Parser *p) {
     Token t = next_tok(p);
@@ -213,9 +209,8 @@ static Expr* parse_primary(Parser *p) {
 
     if (t.type == TOKEN_PAREN && strcmp(t.value, "(") == 0) {
         Expr *inside = parse_expr(p);
-        if (p->error) { expr_free(inside); return NULL; }
-        expect(p, TOKEN_PAREN, ")", "expected ')' after expression");
-        if (p->error) { expr_free(inside); return NULL; }
+        if (p->error) { expr_free(inside); return expr_lit_null(t.line, t.column); }
+        expect(p, TOKEN_PAREN, ")", "expected ')' to close expression");
         return inside;
     }
 
@@ -226,17 +221,15 @@ static Expr* parse_primary(Parser *p) {
 static Expr* parse_unary(Parser *p) {
     Token t = peek_tok(p);
 
-    if (t.type == TOKEN_KEYWORD && strcmp(t.value, "non") == 0) {
+    if (tok_is_kw(&t, "non")) {
         next_tok(p);
         Expr *rhs = parse_unary(p);
-        if (p->error) { expr_free(rhs); return NULL; }
         return expr_unary(OP_NOT, rhs, t.line, t.column);
     }
 
-    if (t.type == TOKEN_OPERATOR && strcmp(t.value, "-") == 0) {
+    if (tok_is_op(&t, "-")) {
         next_tok(p);
         Expr *rhs = parse_unary(p);
-        if (p->error) { expr_free(rhs); return NULL; }
         return expr_unary(OP_NEG, rhs, t.line, t.column);
     }
 
@@ -244,175 +237,121 @@ static Expr* parse_unary(Parser *p) {
 }
 
 static Expr* parse_mul(Parser *p) {
-    Expr *lhs = parse_unary(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_unary(p);
 
     for (;;) {
         Token t = peek_tok(p);
-        ExprOp op = 0;
+        ExprOp op;
 
-        if (t.type == TOKEN_OPERATOR && strcmp(t.value, "*") == 0) op = OP_MUL;
-        else if (t.type == TOKEN_OPERATOR && strcmp(t.value, "/") == 0) op = OP_DIV;
-        else if (t.type == TOKEN_OPERATOR && strcmp(t.value, "%") == 0) op = OP_MOD;
+        if (tok_is_op(&t, "*")) op = OP_MUL;
+        else if (tok_is_op(&t, "/")) op = OP_DIV;
+        else if (tok_is_op(&t, "%")) op = OP_MOD;
         else break;
 
         next_tok(p);
-        Expr *rhs = parse_unary(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
-
-        Expr *node = expr_binary(op, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        Expr *right = parse_unary(p);
+        left = expr_binary(op, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_add(Parser *p) {
-    Expr *lhs = parse_mul(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_mul(p);
 
     for (;;) {
         Token t = peek_tok(p);
-        ExprOp op = 0;
+        ExprOp op;
 
-        if (t.type == TOKEN_OPERATOR && strcmp(t.value, "+") == 0) op = OP_ADD;
-        else if (t.type == TOKEN_OPERATOR && strcmp(t.value, "-") == 0) op = OP_SUB;
+        if (tok_is_op(&t, "+")) op = OP_ADD;
+        else if (tok_is_op(&t, "-")) op = OP_SUB;
         else break;
 
         next_tok(p);
-        Expr *rhs = parse_mul(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
-
-        Expr *node = expr_binary(op, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        Expr *right = parse_mul(p);
+        left = expr_binary(op, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_cmp(Parser *p) {
-    Expr *lhs = parse_add(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_add(p);
 
     for (;;) {
         Token t = peek_tok(p);
-        ExprOp op = 0;
+        ExprOp op;
 
-        if (t.type == TOKEN_COMPARATOR && strcmp(t.value, "<") == 0) op = OP_LT;
-        else if (t.type == TOKEN_COMPARATOR && strcmp(t.value, "<=") == 0) op = OP_LE;
-        else if (t.type == TOKEN_COMPARATOR && strcmp(t.value, ">") == 0) op = OP_GT;
-        else if (t.type == TOKEN_COMPARATOR && strcmp(t.value, ">=") == 0) op = OP_GE;
+        if (tok_is_cmp(&t, "<")) op = OP_LT;
+        else if (tok_is_cmp(&t, "<=")) op = OP_LE;
+        else if (tok_is_cmp(&t, ">")) op = OP_GT;
+        else if (tok_is_cmp(&t, ">=")) op = OP_GE;
         else break;
 
         next_tok(p);
-        Expr *rhs = parse_add(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
-
-        Expr *node = expr_binary(op, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        Expr *right = parse_add(p);
+        left = expr_binary(op, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_eq(Parser *p) {
-    Expr *lhs = parse_cmp(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_cmp(p);
 
     for (;;) {
         Token t = peek_tok(p);
-        ExprOp op = 0;
+        ExprOp op;
 
-        if (t.type == TOKEN_COMPARATOR && strcmp(t.value, "==") == 0) op = OP_EQ;
-        else if (t.type == TOKEN_COMPARATOR && strcmp(t.value, "!=") == 0) op = OP_NE;
+        if (tok_is_cmp(&t, "==")) op = OP_EQ;
+        else if (tok_is_cmp(&t, "!=")) op = OP_NE;
         else break;
 
         next_tok(p);
-        Expr *rhs = parse_cmp(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
-
-        Expr *node = expr_binary(op, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        Expr *right = parse_cmp(p);
+        left = expr_binary(op, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_and(Parser *p) {
-    Expr *lhs = parse_eq(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_eq(p);
 
-    while (tok_is_kw(p, "et")) {
-        Token t = next_tok(p);
-        Expr *rhs = parse_eq(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
+    for (;;) {
+        Token t = peek_tok(p);
+        if (!tok_is_kw(&t, "et")) break;
 
-        Expr *node = expr_binary(OP_AND, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        next_tok(p);
+        Expr *right = parse_eq(p);
+        left = expr_binary(OP_AND, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_or(Parser *p) {
-    Expr *lhs = parse_and(p);
-    if (p->error) { expr_free(lhs); return NULL; }
+    Expr *left = parse_and(p);
 
-    while (tok_is_kw(p, "aut")) {
-        Token t = next_tok(p);
-        Expr *rhs = parse_and(p);
-        if (p->error) { expr_free(lhs); expr_free(rhs); return NULL; }
+    for (;;) {
+        Token t = peek_tok(p);
+        if (!tok_is_kw(&t, "aut")) break;
 
-        Expr *node = expr_binary(OP_OR, lhs, rhs, t.line, t.column);
-        if (!node) {
-            set_error(p, &t, "out of memory");
-            expr_free(lhs);
-            expr_free(rhs);
-            return NULL;
-        }
-        lhs = node;
+        next_tok(p);
+        Expr *right = parse_and(p);
+        left = expr_binary(OP_OR, left, right, t.line, t.column);
     }
 
-    return lhs;
+    return left;
 }
 
 static Expr* parse_expr(Parser *p) {
     return parse_or(p);
 }
 
-/* =========================
-   Statements
-   ========================= */
+/* ============================================================
+   Statement allocation
+   ============================================================ */
 
 static Stmt* new_stmt(StmtKind kind, int line, int col) {
     Stmt *s = (Stmt*)calloc(1, sizeof(Stmt));
@@ -437,53 +376,276 @@ static void append_stmt(ParseResult *r, Stmt *s, Parser *p, const Token *t_for_e
     r->last = s;
 }
 
-static void parse_import_stmt(Parser *p, ParseResult *r, Token kw_import) {
-    Token mod = expect(p, TOKEN_IDENTIFIER, NULL, "expected module name after 'import'");
-    if (p->error) return;
+/* ============================================================
+   IF branch allocation/free
+   ============================================================ */
 
-    Stmt *s = new_stmt(STMT_IMPORT, kw_import.line, kw_import.column);
-    if (!s) { set_error(p, &kw_import, "out of memory"); return; }
-    strncpy(s->module, mod.value, sizeof(s->module) - 1);
-    s->module[sizeof(s->module) - 1] = '\0';
-    append_stmt(r, s, p, &kw_import);
+static IfBranch* new_if_branch(void) {
+    return (IfBranch*)calloc(1, sizeof(IfBranch));
+}
+
+static void free_stmt_list(Stmt *first); /* forward */
+
+static void free_if_branches(IfBranch *b) {
+    while (b) {
+        IfBranch *n = b->next;
+        expr_free(b->cond);
+        b->cond = NULL;
+        free_stmt_list(b->body);
+        b->body = NULL;
+        free(b);
+        b = n;
+    }
+}
+
+/* ============================================================
+   Parse block:
+     NEWLINE INDENT <stmts> DEDENT
+   ============================================================ */
+
+static Stmt* parse_stmt(Parser *p); /* forward */
+
+static Stmt* parse_block(Parser *p) {
+    /* Expect NEWLINE then INDENT */
+    expect(p, TOKEN_NEWLINE, NULL, "expected NEWLINE after ':'");
+    if (p->error) return NULL;
+
+    expect(p, TOKEN_INDENT, NULL, "expected INDENT to start block");
+    if (p->error) return NULL;
+
+    Stmt *first = NULL;
+    Stmt *last  = NULL;
+
+    /* Allow blank lines inside blocks */
+    skip_newlines(p);
+
+    for (;;) {
+        Token t = peek_tok(p);
+
+        if (t.type == TOKEN_EOF) {
+            set_error(p, &t, "unexpected EOF inside block (missing dedent?)");
+            break;
+        }
+
+        if (t.type == TOKEN_DEDENT) {
+            next_tok(p); /* consume DEDENT */
+            break;
+        }
+
+        Stmt *s = parse_stmt(p);
+        if (p->error) {
+            consume_to_recovery_point(p);
+            /* If we stopped at NEWLINE, consume it to continue */
+            if (peek_tok(p).type == TOKEN_NEWLINE) next_tok(p);
+            skip_newlines(p);
+            /* if we then see DEDENT, allow block to end */
+            continue;
+        }
+
+        if (!first) first = s;
+        else last->next = s;
+        last = s;
+
+        /* After a statement, optionally consume one NEWLINE (or many) */
+        skip_newlines(p);
+    }
+
+    return first;
+}
+
+/* ============================================================
+   Parse individual statements
+   ============================================================ */
+
+static void parse_import_stmt(Parser *p, ParseResult *r, Token kw) {
+    Token mod = expect(p, TOKEN_IDENTIFIER, NULL, "expected module name after import");
+
+    Stmt *s = new_stmt(STMT_IMPORT, kw.line, kw.column);
+    if (s) {
+        strncpy(s->module, mod.value, NOEMA_TOKEN_VALUE_MAX - 1);
+        s->module[NOEMA_TOKEN_VALUE_MAX - 1] = '\0';
+    }
+    append_stmt(r, s, p, &kw);
+
+    /* Optional trailing NEWLINE handled by caller (skip_newlines) */
 }
 
 static void parse_assign_stmt(Parser *p, ParseResult *r, Token ident) {
-    expect(p, TOKEN_ASSIGN, "=", "expected '=' after identifier");
-    if (p->error) return;
-
-    Expr *rhs = parse_expr(p);
-    if (p->error) { expr_free(rhs); return; }
+    expect(p, TOKEN_ASSIGN, "=", "expected '=' in assignment");
 
     Stmt *s = new_stmt(STMT_ASSIGN, ident.line, ident.column);
-    if (!s) { set_error(p, &ident, "out of memory"); expr_free(rhs); return; }
+    if (s) {
+        strncpy(s->target, ident.value, NOEMA_TOKEN_VALUE_MAX - 1);
+        s->target[NOEMA_TOKEN_VALUE_MAX - 1] = '\0';
 
-    strncpy(s->target, ident.value, sizeof(s->target) - 1);
-    s->target[sizeof(s->target) - 1] = '\0';
-    s->value = rhs;
-
+        s->value = parse_expr(p);
+    }
     append_stmt(r, s, p, &ident);
 }
 
 static void parse_print_call(Parser *p, ParseResult *r, Token ident) {
+    /* We accept IDENTIFIER token "sonus.dic" from lexer allowing '.' inside identifiers. */
     expect(p, TOKEN_PAREN, "(", "expected '(' after sonus.dic");
-    if (p->error) return;
-
-    Expr *arg = parse_expr(p);
-    if (p->error) { expr_free(arg); return; }
-
-    expect(p, TOKEN_PAREN, ")", "expected ')' after argument");
-    if (p->error) { expr_free(arg); return; }
-
     Stmt *s = new_stmt(STMT_CALL_PRINT, ident.line, ident.column);
-    if (!s) { set_error(p, &ident, "out of memory"); expr_free(arg); return; }
-    s->arg = arg;
+    if (s) {
+        s->arg = parse_expr(p);
+    }
+    expect(p, TOKEN_PAREN, ")", "expected ')' after argument");
     append_stmt(r, s, p, &ident);
 }
 
-/* =========================
-   Public API
-   ========================= */
+static Stmt* parse_if_stmt(Parser *p, Token kw_si) {
+    /* parse: si <expr> : NEWLINE INDENT block DEDENT (aliosi ...)* (alio ...)? */
+
+    Stmt *s = new_stmt(STMT_IF, kw_si.line, kw_si.column);
+    if (!s) {
+        set_error(p, &kw_si, "out of memory creating if statement");
+        return NULL;
+    }
+
+    IfBranch *head = NULL;
+    IfBranch *tail = NULL;
+
+    /* --- first "si" branch --- */
+    {
+        IfBranch *b = new_if_branch();
+        if (!b) {
+            set_error(p, &kw_si, "out of memory creating if branch");
+            free(s);
+            return NULL;
+        }
+
+        b->cond = parse_expr(p);
+        expect(p, TOKEN_COLON, ":", "expected ':' after si condition");
+        if (p->error) { free_if_branches(b); free(s); return NULL; }
+
+        b->body = parse_block(p);
+        if (p->error) { free_if_branches(b); free(s); return NULL; }
+
+        head = tail = b;
+    }
+
+    /* --- zero or more "aliosi" branches --- */
+    for (;;) {
+        Token t = peek_tok(p);
+        if (!(t.type == TOKEN_KEYWORD && strcmp(t.value, "aliosi") == 0)) break;
+        next_tok(p); /* consume aliosi */
+
+        IfBranch *b = new_if_branch();
+        if (!b) {
+            set_error(p, &t, "out of memory creating aliosi branch");
+            free_if_branches(head);
+            free(s);
+            return NULL;
+        }
+
+        b->cond = parse_expr(p);
+        expect(p, TOKEN_COLON, ":", "expected ':' after aliosi condition");
+        if (p->error) { free_if_branches(b); free_if_branches(head); free(s); return NULL; }
+
+        b->body = parse_block(p);
+        if (p->error) { free_if_branches(b); free_if_branches(head); free(s); return NULL; }
+
+        tail->next = b;
+        tail = b;
+    }
+
+    /* --- optional "alio" branch --- */
+    {
+        Token t = peek_tok(p);
+        if (t.type == TOKEN_KEYWORD && strcmp(t.value, "alio") == 0) {
+            next_tok(p); /* consume alio */
+
+            IfBranch *b = new_if_branch();
+            if (!b) {
+                set_error(p, &t, "out of memory creating alio branch");
+                free_if_branches(head);
+                free(s);
+                return NULL;
+            }
+
+            b->cond = NULL; /* else */
+            expect(p, TOKEN_COLON, ":", "expected ':' after alio");
+            if (p->error) { free_if_branches(b); free_if_branches(head); free(s); return NULL; }
+
+            b->body = parse_block(p);
+            if (p->error) { free_if_branches(b); free_if_branches(head); free(s); return NULL; }
+
+            tail->next = b;
+            tail = b;
+        }
+    }
+
+    s->if_branches = head;
+    return s;
+}
+
+static Stmt* parse_stmt(Parser *p) {
+    Token t = peek_tok(p);
+
+    if (t.type == TOKEN_KEYWORD && strcmp(t.value, "import") == 0) {
+        Token kw = next_tok(p);
+        ParseResult tmp = {0}; /* dummy just to reuse existing append pattern if needed */
+        /* Here we return a stmt instead of appending directly */
+        Token mod = expect(p, TOKEN_IDENTIFIER, NULL, "expected module name after import");
+        Stmt *s = new_stmt(STMT_IMPORT, kw.line, kw.column);
+        if (s) {
+            strncpy(s->module, mod.value, NOEMA_TOKEN_VALUE_MAX - 1);
+            s->module[NOEMA_TOKEN_VALUE_MAX - 1] = '\0';
+        }
+        (void)tmp;
+        return s;
+    }
+
+    if (t.type == TOKEN_KEYWORD && strcmp(t.value, "si") == 0) {
+        Token kw_si = next_tok(p);
+        return parse_if_stmt(p, kw_si);
+    }
+
+    if (t.type == TOKEN_IDENTIFIER) {
+        Token ident = next_tok(p);
+
+        if (strcmp(ident.value, "sonus.dic") == 0) {
+            /* print call statement */
+            expect(p, TOKEN_PAREN, "(", "expected '(' after sonus.dic");
+            Stmt *s = new_stmt(STMT_CALL_PRINT, ident.line, ident.column);
+            if (s) s->arg = parse_expr(p);
+            expect(p, TOKEN_PAREN, ")", "expected ')' after argument");
+            return s;
+        }
+
+        /* assignment */
+        Token nx = peek_tok(p);
+        if (nx.type == TOKEN_ASSIGN) {
+            next_tok(p); /* consume '=' */
+            Stmt *s = new_stmt(STMT_ASSIGN, ident.line, ident.column);
+            if (s) {
+                strncpy(s->target, ident.value, NOEMA_TOKEN_VALUE_MAX - 1);
+                s->target[NOEMA_TOKEN_VALUE_MAX - 1] = '\0';
+                s->value = parse_expr(p);
+            }
+            return s;
+        }
+
+        set_error(p, &nx, "expected assignment (=) or call (sonus.dic)");
+        return NULL;
+    }
+
+    /* If a DEDENT bubbles up here, it's a block end. Let caller handle it. */
+    if (t.type == TOKEN_DEDENT) {
+        set_error(p, &t, "unexpected DEDENT");
+        return NULL;
+    }
+
+    /* Unknown token */
+    Token bad = next_tok(p);
+    set_error(p, &bad, "unexpected token");
+    return NULL;
+}
+
+/* ============================================================
+   Program parse
+   ============================================================ */
 
 Parser* parser_create(Lexer *lx) {
     if (!lx) return NULL;
@@ -505,45 +667,45 @@ ParseResult parser_parse_program(Parser *p) {
     memset(&r, 0, sizeof(r));
     r.ok = 0;
 
-    if (!p || lexer_has_error(p->lx)) {
-        snprintf(r.message, sizeof(r.message), "lexer error: %s", lexer_error_message(p->lx));
+    if (!p) {
+        snprintf(r.message, sizeof(r.message), "parser not initialized");
         return r;
     }
 
-    while (!p->error) {
-        skip_noise(p);
+    skip_newlines(p);
 
+    while (!p->error) {
         Token t = peek_tok(p);
         if (t.type == TOKEN_EOF) break;
 
-        if (t.type == TOKEN_KEYWORD && strcmp(t.value, "import") == 0) {
-            Token kw = next_tok(p);
-            parse_import_stmt(p, &r, kw);
-        }
-        else if (t.type == TOKEN_IDENTIFIER) {
-            Token ident = next_tok(p);
-
-            if (strcmp(ident.value, "sonus.dic") == 0) {
-                parse_print_call(p, &r, ident);
-            } else {
-                Token nx = peek_tok(p);
-                if (nx.type == TOKEN_ASSIGN) {
-                    parse_assign_stmt(p, &r, ident);
-                } else {
-                    set_error(p, &nx, "expected assignment or call");
-                }
-            }
-        }
-        else {
+        /* At top-level, INDENT/DEDENT are not expected */
+        if (t.type == TOKEN_INDENT) {
             Token bad = next_tok(p);
-            set_error(p, &bad, "unexpected token");
+            set_error(p, &bad, "unexpected INDENT at top-level");
+            consume_to_recovery_point(p);
+            skip_newlines(p);
+            continue;
+        }
+        if (t.type == TOKEN_DEDENT) {
+            Token bad = next_tok(p);
+            set_error(p, &bad, "unexpected DEDENT at top-level");
+            consume_to_recovery_point(p);
+            skip_newlines(p);
+            continue;
         }
 
+        Stmt *s = parse_stmt(p);
         if (p->error) {
-            consume_to_newline(p);
+            consume_to_recovery_point(p);
+            if (peek_tok(p).type == TOKEN_NEWLINE) next_tok(p);
+            skip_newlines(p);
+            continue;
         }
 
-        skip_noise(p);
+        append_stmt(&r, s, p, &t);
+
+        /* Consume any trailing newlines */
+        skip_newlines(p);
     }
 
     if (lexer_has_error(p->lx)) {
@@ -563,7 +725,11 @@ ParseResult parser_parse_program(Parser *p) {
     return r;
 }
 
-void parser_free_program(Stmt *first) {
+/* ============================================================
+   Free program
+   ============================================================ */
+
+static void free_stmt_list(Stmt *first) {
     Stmt *s = first;
     while (s) {
         Stmt *n = s->next;
@@ -571,14 +737,20 @@ void parser_free_program(Stmt *first) {
         if (s->kind == STMT_ASSIGN) {
             expr_free(s->value);
             s->value = NULL;
-        }
-        if (s->kind == STMT_CALL_PRINT) {
+        } else if (s->kind == STMT_CALL_PRINT) {
             expr_free(s->arg);
             s->arg = NULL;
+        } else if (s->kind == STMT_IF) {
+            free_if_branches(s->if_branches);
+            s->if_branches = NULL;
         }
 
         free(s);
         s = n;
     }
+}
+
+void parser_free_program(Stmt *first) {
+    free_stmt_list(first);
 }
 
